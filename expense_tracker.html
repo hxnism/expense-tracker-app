@@ -7,7 +7,7 @@
     <meta name="description" content="Personal expense tracker - Track your expenses offline">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>💰</text></svg>">
-    <title>Expense Tracker</title>
+    <title>Expense Tracker Pro</title>
     <style>
         * {
             margin: 0;
@@ -147,6 +147,16 @@
             transform: scale(0.98);
         }
 
+        .btn-secondary {
+            background: var(--secondary);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
         .btn-danger {
             background: var(--danger);
             color: white;
@@ -187,6 +197,12 @@
         .form-control:focus {
             outline: none;
             border-color: var(--primary);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
         }
 
         .category-grid {
@@ -274,10 +290,25 @@
             text-overflow: ellipsis;
         }
 
-        .expense-date {
+        .expense-meta {
             font-size: 0.8em;
             color: var(--gray);
             margin-top: 3px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .expense-tag {
+            background: var(--light-gray);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+
+        .trip-tag {
+            background: #dbeafe;
+            color: #1e40af;
         }
 
         .expense-amount {
@@ -286,6 +317,7 @@
             color: var(--danger);
             margin-right: 10px;
             flex-shrink: 0;
+            text-align: right;
         }
 
         .expense-actions {
@@ -434,9 +466,42 @@
             font-size: 1.5em;
         }
 
-        .chart-container {
-            margin-top: 20px;
-            height: 200px;
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .list-item:last-child {
+            border-bottom: none;
+        }
+
+        .currency-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .currency-box {
+            background: var(--light-gray);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .currency-code {
+            font-size: 0.8em;
+            color: var(--gray);
+            margin-bottom: 5px;
+        }
+
+        .currency-total {
+            font-size: 1.1em;
+            font-weight: 700;
+            color: var(--danger);
         }
 
         @keyframes fadeIn {
@@ -448,37 +513,14 @@
             from { transform: translateY(100%); }
             to { transform: translateY(0); }
         }
-
-        .install-prompt {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-            color: white;
-            padding: 15px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            display: none;
-        }
-
-        .install-prompt.show {
-            display: block;
-        }
-
-        .install-prompt h3 {
-            margin-bottom: 10px;
-        }
-
-        .install-prompt button {
-            background: white;
-            color: var(--primary);
-            margin-top: 10px;
-        }
     </style>
 </head>
 <body>
     <!-- Header -->
     <div class="header">
-        <h1>💰 Expense Tracker</h1>
+        <h1>💰 Expense Tracker Pro</h1>
         <div class="balance-card">
-            <div class="balance-label">Total Spent This Month</div>
+            <div class="balance-label">Total Spent This Month (SGD)</div>
             <div class="balance-amount" id="totalBalance">$0.00</div>
             <div class="stats-row">
                 <div class="stat-box">
@@ -490,26 +532,18 @@
                     <div class="stat-value" id="weekTotal">$0.00</div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Install Prompt -->
-    <div class="container">
-        <div class="install-prompt" id="installPrompt">
-            <h3>📱 Install App</h3>
-            <p>Install this app on your home screen for quick access!</p>
-            <button class="btn btn-primary" onclick="installApp()">Install</button>
+            <div class="currency-summary" id="currencySummary"></div>
         </div>
     </div>
 
     <!-- Main Content -->
     <div class="container" id="mainView">
         <!-- Filters -->
-        <div class="filter-tabs">
+        <div class="filter-tabs" id="filterTabs">
             <button class="filter-tab active" onclick="filterExpenses('all')">All</button>
+            <button class="filter-tab" onclick="filterExpenses('daily')">Daily</button>
             <button class="filter-tab" onclick="filterExpenses('today')">Today</button>
             <button class="filter-tab" onclick="filterExpenses('week')">This Week</button>
-            <button class="filter-tab" onclick="filterExpenses('month')">This Month</button>
         </div>
 
         <!-- Expense List -->
@@ -517,9 +551,7 @@
             <div class="section-header">
                 <h2 class="section-title">Recent Expenses</h2>
             </div>
-            <ul class="expense-list" id="expenseList">
-                <!-- Expenses will be added here -->
-            </ul>
+            <ul class="expense-list" id="expenseList"></ul>
             <div class="empty-state" id="emptyState">
                 <div class="empty-state-icon">📭</div>
                 <p>No expenses yet. Tap the + button to add one!</p>
@@ -530,13 +562,37 @@
     <!-- Stats View -->
     <div class="container" id="statsView" style="display: none;">
         <div class="section">
-            <h2 class="section-title">Spending by Category</h2>
-            <div id="categoryStats"></div>
+            <h2 class="section-title">Spending by Currency</h2>
+            <div id="currencyStats"></div>
         </div>
 
         <div class="section">
-            <h2 class="section-title">Actions</h2>
-            <button class="btn btn-primary" onclick="exportData()" style="width: 100%; margin-bottom: 10px;">
+            <h2 class="section-title">Daily Expenses</h2>
+            <div id="dailyStats"></div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">Trips</h2>
+            <div id="tripStats"></div>
+            <button class="btn btn-primary" onclick="openTripModal()" style="width: 100%; margin-top: 10px;">
+                ✈️ Manage Trips
+            </button>
+        </div>
+    </div>
+
+    <!-- Settings View -->
+    <div class="container" id="settingsView" style="display: none;">
+        <div class="section">
+            <h2 class="section-title">Payment Methods</h2>
+            <div id="paymentMethodList"></div>
+            <button class="btn btn-primary" onclick="openPaymentMethodModal()" style="width: 100%; margin-top: 10px;">
+                ➕ Add Payment Method
+            </button>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">Data Management</h2>
+            <button class="btn btn-success" onclick="exportData()" style="width: 100%; margin-bottom: 10px;">
                 📤 Export Data
             </button>
             <button class="btn btn-danger" onclick="clearAllData()" style="width: 100%;">
@@ -553,7 +609,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title" id="modalTitle">Add Expense</h2>
-                <button class="close-btn" onclick="closeModal()">&times;</button>
+                <button class="close-btn" onclick="closeModal('addModal')">&times;</button>
             </div>
 
             <form id="expenseForm" onsubmit="saveExpense(event)">
@@ -593,14 +649,44 @@
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label for="amount">Amount ($)</label>
-                    <input type="number" class="form-control" id="amount" step="0.01" required>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="amount">Amount</label>
+                        <input type="number" class="form-control" id="amount" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="currency">Currency</label>
+                        <select class="form-control" id="currency">
+                            <option value="SGD">SGD</option>
+                            <option value="USD">USD</option>
+                            <option value="EUR">EUR</option>
+                            <option value="GBP">GBP</option>
+                            <option value="JPY">JPY</option>
+                            <option value="KRW">KRW</option>
+                            <option value="TWD">TWD</option>
+                            <option value="MYR">MYR</option>
+                            <option value="CNY">CNY</option>
+                            <option value="THB">THB</option>
+                            <option value="IDR">IDR</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="form-group">
                     <label for="description">Description</label>
                     <input type="text" class="form-control" id="description" placeholder="e.g., Lunch at restaurant">
+                </div>
+
+                <div class="form-group">
+                    <label for="paymentMethod">Payment Method</label>
+                    <select class="form-control" id="paymentMethod"></select>
+                </div>
+
+                <div class="form-group">
+                    <label for="tripSelect">Trip (Optional)</label>
+                    <select class="form-control" id="tripSelect">
+                        <option value="">Daily Expenses</option>
+                    </select>
                 </div>
 
                 <div class="form-group">
@@ -613,6 +699,47 @@
         </div>
     </div>
 
+    <!-- Trip Modal -->
+    <div class="modal" id="tripModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Manage Trips</h2>
+                <button class="close-btn" onclick="closeModal('tripModal')">&times;</button>
+            </div>
+
+            <div class="form-group">
+                <label for="tripName">New Trip Name</label>
+                <input type="text" class="form-control" id="tripName" placeholder="e.g., Tokyo 2026">
+            </div>
+
+            <button class="btn btn-primary" onclick="addTrip()" style="width: 100%; margin-bottom: 20px;">
+                Add Trip
+            </button>
+
+            <h3 style="margin-bottom: 10px;">Your Trips</h3>
+            <div id="tripList"></div>
+        </div>
+    </div>
+
+    <!-- Payment Method Modal -->
+    <div class="modal" id="paymentMethodModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Add Payment Method</h2>
+                <button class="close-btn" onclick="closeModal('paymentMethodModal')">&times;</button>
+            </div>
+
+            <div class="form-group">
+                <label for="paymentMethodName">Payment Method Name</label>
+                <input type="text" class="form-control" id="paymentMethodName" placeholder="e.g., DBS Credit Card">
+            </div>
+
+            <button class="btn btn-primary" onclick="addPaymentMethod()" style="width: 100%;">
+                Add Payment Method
+            </button>
+        </div>
+    </div>
+
     <!-- Bottom Navigation -->
     <div class="bottom-nav">
         <button class="nav-item active" onclick="switchView('main')">
@@ -622,6 +749,10 @@
         <button class="nav-item" onclick="switchView('stats')">
             <div class="nav-icon">📊</div>
             <div>Stats</div>
+        </button>
+        <button class="nav-item" onclick="switchView('settings')">
+            <div class="nav-icon">⚙️</div>
+            <div>Settings</div>
         </button>
     </div>
 
@@ -638,50 +769,36 @@
         };
 
         let expenses = [];
+        let trips = [];
+        let paymentMethods = [];
         let selectedCategory = '';
         let editingId = null;
         let currentFilter = 'all';
-        let deferredPrompt = null;
+        let currentTripFilter = '';
 
         // Initialize app
         document.addEventListener('DOMContentLoaded', function() {
-            loadExpenses();
+            loadData();
             setupCategoryButtons();
             setDefaultDate();
+            populatePaymentMethodSelect();
+            populateTripSelect();
             updateStats();
             renderExpenses();
-
-            // Check if app is already installed
-            if (window.matchMedia('(display-mode: standalone)').matches) {
-                console.log('App is installed');
-            } else {
-                // Show install prompt after 3 seconds
-                setTimeout(() => {
-                    document.getElementById('installPrompt').classList.add('show');
-                }, 3000);
-            }
         });
 
-        // PWA Install
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            document.getElementById('installPrompt').classList.add('show');
-        });
+        // Load all data from localStorage
+        function loadData() {
+            expenses = JSON.parse(localStorage.getItem('expenses')) || [];
+            trips = JSON.parse(localStorage.getItem('trips')) || [];
+            paymentMethods = JSON.parse(localStorage.getItem('paymentMethods')) || ['Cash', 'Credit Card', 'Debit Card'];
+        }
 
-        function installApp() {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                deferredPrompt.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') {
-                        console.log('App installed');
-                    }
-                    deferredPrompt = null;
-                    document.getElementById('installPrompt').classList.remove('show');
-                });
-            } else {
-                alert('To install: Open browser menu and select "Add to Home Screen" or "Install App"');
-            }
+        // Save data to localStorage
+        function saveData() {
+            localStorage.setItem('expenses', JSON.stringify(expenses));
+            localStorage.setItem('trips', JSON.stringify(trips));
+            localStorage.setItem('paymentMethods', JSON.stringify(paymentMethods));
         }
 
         // Setup category buttons
@@ -702,15 +819,9 @@
             document.getElementById('date').value = today;
         }
 
-        // Load expenses from localStorage
-        function loadExpenses() {
-            const stored = localStorage.getItem('expenses');
-            expenses = stored ? JSON.parse(stored) : [];
-        }
-
-        // Save expenses to localStorage
-        function saveExpensesToStorage() {
-            localStorage.setItem('expenses', JSON.stringify(expenses));
+        // Format currency
+        function formatCurrency(amount, currency = 'SGD') {
+            return `${currency} ${amount.toFixed(2)}`;
         }
 
         // Open add modal
@@ -719,14 +830,17 @@
             selectedCategory = '';
             document.getElementById('modalTitle').textContent = 'Add Expense';
             document.getElementById('expenseForm').reset();
+            document.getElementById('currency').value = 'SGD';
             setDefaultDate();
             document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
+            populatePaymentMethodSelect();
+            populateTripSelect();
             document.getElementById('addModal').classList.add('active');
         }
 
         // Close modal
-        function closeModal() {
-            document.getElementById('addModal').classList.remove('active');
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
         }
 
         // Save expense
@@ -742,7 +856,10 @@
                 id: editingId || Date.now().toString(),
                 category: selectedCategory,
                 amount: parseFloat(document.getElementById('amount').value),
+                currency: document.getElementById('currency').value,
                 description: document.getElementById('description').value,
+                paymentMethod: document.getElementById('paymentMethod').value,
+                trip: document.getElementById('tripSelect').value,
                 date: document.getElementById('date').value,
                 timestamp: Date.now()
             };
@@ -754,10 +871,10 @@
                 expenses.unshift(expense);
             }
 
-            saveExpensesToStorage();
+            saveData();
             updateStats();
             renderExpenses();
-            closeModal();
+            closeModal('addModal');
         }
 
         // Edit expense
@@ -771,8 +888,15 @@
             document.getElementById('modalTitle').textContent = 'Edit Expense';
             document.getElementById('expenseId').value = expense.id;
             document.getElementById('amount').value = expense.amount;
+            document.getElementById('currency').value = expense.currency;
             document.getElementById('description').value = expense.description;
             document.getElementById('date').value = expense.date;
+
+            populatePaymentMethodSelect();
+            document.getElementById('paymentMethod').value = expense.paymentMethod;
+
+            populateTripSelect();
+            document.getElementById('tripSelect').value = expense.trip || '';
 
             document.querySelectorAll('.category-btn').forEach(btn => {
                 btn.classList.remove('active');
@@ -788,7 +912,7 @@
         function deleteExpense(id) {
             if (confirm('Delete this expense?')) {
                 expenses = expenses.filter(e => e.id !== id);
-                saveExpensesToStorage();
+                saveData();
                 updateStats();
                 renderExpenses();
             }
@@ -797,8 +921,8 @@
         // Filter expenses
         function filterExpenses(filter) {
             currentFilter = filter;
+            currentTripFilter = '';
 
-            // Update active tab
             document.querySelectorAll('.filter-tab').forEach(tab => {
                 tab.classList.remove('active');
             });
@@ -807,23 +931,42 @@
             renderExpenses();
         }
 
+        // Filter by trip
+        function filterByTrip(tripId) {
+            currentTripFilter = tripId;
+            currentFilter = 'trip';
+
+            const filterTabs = document.getElementById('filterTabs');
+            filterTabs.innerHTML = `
+                <button class="filter-tab" onclick="filterExpenses('all')">All</button>
+                <button class="filter-tab" onclick="filterExpenses('daily')">Daily</button>
+                <button class="filter-tab active" onclick="filterByTrip('${tripId}')">${getTripName(tripId)}</button>
+            `;
+
+            switchView('main');
+            renderExpenses();
+        }
+
         // Get filtered expenses
         function getFilteredExpenses() {
             const now = new Date();
             const today = now.toISOString().split('T')[0];
-
             const weekAgo = new Date(now);
             weekAgo.setDate(weekAgo.getDate() - 7);
 
-            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            let filtered = expenses;
+
+            if (currentFilter === 'trip' && currentTripFilter) {
+                return expenses.filter(e => e.trip === currentTripFilter);
+            }
 
             switch(currentFilter) {
+                case 'daily':
+                    return expenses.filter(e => !e.trip);
                 case 'today':
                     return expenses.filter(e => e.date === today);
                 case 'week':
                     return expenses.filter(e => new Date(e.date) >= weekAgo);
-                case 'month':
-                    return expenses.filter(e => new Date(e.date) >= monthStart);
                 default:
                     return expenses;
             }
@@ -845,6 +988,8 @@
 
             list.innerHTML = filtered.map(expense => {
                 const cat = CATEGORIES[expense.category];
+                const tripName = expense.trip ? getTripName(expense.trip) : null;
+
                 return `
                     <li class="expense-item">
                         <div class="expense-icon" style="background: ${cat.color}20; color: ${cat.color}">
@@ -853,9 +998,15 @@
                         <div class="expense-details">
                             <div class="expense-category">${expense.category}</div>
                             <div class="expense-description">${expense.description || 'No description'}</div>
-                            <div class="expense-date">${formatDate(expense.date)}</div>
+                            <div class="expense-meta">
+                                <span>${formatDate(expense.date)}</span>
+                                <span class="expense-tag">${expense.paymentMethod || 'N/A'}</span>
+                                ${tripName ? `<span class="expense-tag trip-tag">✈️ ${tripName}</span>` : ''}
+                            </div>
                         </div>
-                        <div class="expense-amount">$${expense.amount.toFixed(2)}</div>
+                        <div class="expense-amount">
+                            ${formatCurrency(expense.amount, expense.currency)}
+                        </div>
                         <div class="expense-actions">
                             <button class="btn btn-primary btn-icon btn-sm" onclick="editExpense('${expense.id}')">✏️</button>
                             <button class="btn btn-danger btn-icon btn-sm" onclick="deleteExpense('${expense.id}')">🗑️</button>
@@ -869,15 +1020,13 @@
         function updateStats() {
             const now = new Date();
             const today = now.toISOString().split('T')[0];
-
             const weekAgo = new Date(now);
             weekAgo.setDate(weekAgo.getDate() - 7);
-
             const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-            const todayExpenses = expenses.filter(e => e.date === today);
-            const weekExpenses = expenses.filter(e => new Date(e.date) >= weekAgo);
-            const monthExpenses = expenses.filter(e => new Date(e.date) >= monthStart);
+            const todayExpenses = expenses.filter(e => e.date === today && e.currency === 'SGD');
+            const weekExpenses = expenses.filter(e => new Date(e.date) >= weekAgo && e.currency === 'SGD');
+            const monthExpenses = expenses.filter(e => new Date(e.date) >= monthStart && e.currency === 'SGD');
 
             const todayTotal = todayExpenses.reduce((sum, e) => sum + e.amount, 0);
             const weekTotal = weekExpenses.reduce((sum, e) => sum + e.amount, 0);
@@ -887,48 +1036,350 @@
             document.getElementById('weekTotal').textContent = `$${weekTotal.toFixed(2)}`;
             document.getElementById('totalBalance').textContent = `$${monthTotal.toFixed(2)}`;
 
-            updateCategoryStats();
+            updateCurrencySummary();
+            updateDailyStats();
+            updateTripStats();
+            updateCurrencyStats();
         }
 
-        // Update category statistics
-        function updateCategoryStats() {
-            const container = document.getElementById('categoryStats');
+        // Update currency summary in header
+        function updateCurrencySummary() {
             const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
             const monthExpenses = expenses.filter(e => new Date(e.date) >= monthStart);
 
-            const categoryTotals = {};
+            const currencyTotals = {};
             monthExpenses.forEach(expense => {
-                categoryTotals[expense.category] = (categoryTotals[expense.category] || 0) + expense.amount;
+                if (expense.currency !== 'SGD') {
+                    currencyTotals[expense.currency] = (currencyTotals[expense.currency] || 0) + expense.amount;
+                }
             });
 
-            const total = Object.values(categoryTotals).reduce((sum, val) => sum + val, 0);
+            const container = document.getElementById('currencySummary');
 
-            if (total === 0) {
+            if (Object.keys(currencyTotals).length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = Object.entries(currencyTotals).map(([currency, total]) => `
+                <div class="currency-box">
+                    <div class="currency-code">${currency}</div>
+                    <div class="currency-total">${total.toFixed(2)}</div>
+                </div>
+            `).join('');
+        }
+
+        // Update currency statistics
+        function updateCurrencyStats() {
+            const container = document.getElementById('currencyStats');
+            const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+            const monthExpenses = expenses.filter(e => new Date(e.date) >= monthStart);
+
+            const currencyTotals = {};
+            monthExpenses.forEach(expense => {
+                currencyTotals[expense.currency] = (currencyTotals[expense.currency] || 0) + expense.amount;
+            });
+
+            if (Object.keys(currencyTotals).length === 0) {
                 container.innerHTML = '<p style="text-align: center; color: var(--gray); padding: 20px;">No expenses this month</p>';
                 return;
             }
 
-            container.innerHTML = Object.entries(categoryTotals)
-                .sort((a, b) => b[1] - a[1])
-                .map(([category, amount]) => {
-                    const percentage = (amount / total * 100).toFixed(1);
-                    const cat = CATEGORIES[category];
+            container.innerHTML = Object.entries(currencyTotals)
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(([currency, total]) => `
+                    <div class="list-item">
+                        <span style="font-weight: 600;">${currency}</span>
+                        <span style="font-weight: 700; color: var(--danger);">${total.toFixed(2)}</span>
+                    </div>
+                `).join('');
+        }
+
+        // Update daily expenses statistics
+        function updateDailyStats() {
+            const container = document.getElementById('dailyStats');
+            const now = new Date();
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            const weekAgo = new Date(now);
+            weekAgo.setDate(weekAgo.getDate() - 7);
+
+            const dailyExpenses = expenses.filter(e => !e.trip);
+            const thisWeekExpenses = dailyExpenses.filter(e => new Date(e.date) >= weekAgo);
+            const thisMonthExpenses = dailyExpenses.filter(e => new Date(e.date) >= monthStart);
+
+            if (dailyExpenses.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: var(--gray); padding: 20px;">No daily expenses yet</p>';
+                return;
+            }
+
+            // Function to generate category breakdown
+            function getCategoryBreakdown(expenseList, title, bgColor) {
+                if (expenseList.length === 0) {
                     return `
-                        <div style="margin-bottom: 15px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                                <div style="display: flex; align-items: center; gap: 10px;">
-                                    <span style="font-size: 1.5em;">${cat.icon}</span>
-                                    <span style="font-weight: 600;">${category}</span>
-                                </div>
-                                <span style="font-weight: 700;">$${amount.toFixed(2)}</span>
-                            </div>
-                            <div style="background: var(--light-gray); height: 8px; border-radius: 4px; overflow: hidden;">
-                                <div style="background: ${cat.color}; height: 100%; width: ${percentage}%; transition: width 0.3s;"></div>
-                            </div>
-                            <div style="text-align: right; font-size: 0.85em; color: var(--gray); margin-top: 3px;">${percentage}%</div>
+                        <div style="margin-bottom: 20px; padding: 15px; background: ${bgColor}; border-radius: 12px;">
+                            <h3 style="margin: 0 0 10px 0;">${title}</h3>
+                            <p style="text-align: center; color: var(--gray); padding: 10px 0;">No expenses</p>
                         </div>
                     `;
-                }).join('');
+                }
+
+                // Group by category
+                const categoryData = {};
+                expenseList.forEach(expense => {
+                    if (!categoryData[expense.category]) {
+                        categoryData[expense.category] = {};
+                    }
+                    if (!categoryData[expense.category][expense.currency]) {
+                        categoryData[expense.category][expense.currency] = 0;
+                    }
+                    categoryData[expense.category][expense.currency] += expense.amount;
+                });
+
+                const categoryHTML = Object.entries(categoryData)
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([category, currencies]) => {
+                        const cat = CATEGORIES[category];
+                        const currencyDisplay = Object.entries(currencies)
+                            .map(([curr, amt]) => `${curr} ${amt.toFixed(2)}`)
+                            .join(' | ');
+
+                        return `
+                            <div class="list-item">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span style="font-size: 1.2em;">${cat.icon}</span>
+                                    <span style="font-weight: 500;">${category}</span>
+                                </div>
+                                <span style="font-weight: 700; color: ${cat.color}; font-size: 0.9em;">${currencyDisplay}</span>
+                            </div>
+                        `;
+                    }).join('');
+
+                return `
+                    <div style="margin-bottom: 20px; padding: 15px; background: ${bgColor}; border-radius: 12px;">
+                        <h3 style="margin: 0 0 10px 0;">${title}</h3>
+                        <div style="background: white; border-radius: 8px; overflow: hidden;">
+                            ${categoryHTML}
+                        </div>
+                        <div style="margin-top: 10px; font-size: 0.85em; color: var(--gray); text-align: right;">
+                            ${expenseList.length} expense${expenseList.length !== 1 ? 's' : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML =
+                getCategoryBreakdown(thisWeekExpenses, '📅 This Week', '#e0f2fe') +
+                getCategoryBreakdown(thisMonthExpenses, '📆 This Month', '#f0fdf4');
+        }
+
+        // Update trip statistics
+        function updateTripStats() {
+            const container = document.getElementById('tripStats');
+
+            if (trips.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: var(--gray); padding: 20px;">No trips yet</p>';
+                return;
+            }
+
+            container.innerHTML = trips.map(trip => {
+                const tripExpenses = expenses.filter(e => e.trip === trip.id);
+
+                if (tripExpenses.length === 0) {
+                    return `
+                        <div style="margin-bottom: 20px; padding: 15px; background: var(--light-gray); border-radius: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <h3 style="margin: 0;">✈️ ${trip.name}</h3>
+                                <button class="btn btn-primary btn-sm" onclick="filterByTrip('${trip.id}')">View</button>
+                            </div>
+                            <p style="text-align: center; color: var(--gray); padding: 10px 0;">No expenses yet</p>
+                        </div>
+                    `;
+                }
+
+                // Calculate total by currency
+                const currencyTotals = {};
+                tripExpenses.forEach(expense => {
+                    currencyTotals[expense.currency] = (currencyTotals[expense.currency] || 0) + expense.amount;
+                });
+
+                const totalSummaryHTML = `
+                    <div style="background: #dbeafe; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
+                        <div style="font-weight: 600; color: #1e40af; margin-bottom: 8px; font-size: 0.9em;">💰 Total Expenses</div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                            ${Object.entries(currencyTotals)
+                                .sort((a, b) => a[0].localeCompare(b[0]))
+                                .map(([currency, total]) => `
+                                    <div style="background: white; padding: 8px 12px; border-radius: 6px;">
+                                        <span style="font-weight: 700; color: #1e40af;">${currency} ${total.toFixed(2)}</span>
+                                    </div>
+                                `).join('')}
+                        </div>
+                    </div>
+                `;
+
+                // Group by category
+                const categoryData = {};
+                tripExpenses.forEach(expense => {
+                    if (!categoryData[expense.category]) {
+                        categoryData[expense.category] = {};
+                    }
+                    if (!categoryData[expense.category][expense.currency]) {
+                        categoryData[expense.category][expense.currency] = 0;
+                    }
+                    categoryData[expense.category][expense.currency] += expense.amount;
+                });
+
+                const categoryHTML = Object.entries(categoryData)
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([category, currencies]) => {
+                        const cat = CATEGORIES[category];
+                        const currencyDisplay = Object.entries(currencies)
+                            .map(([curr, amt]) => `${curr} ${amt.toFixed(2)}`)
+                            .join(' | ');
+
+                        return `
+                            <div class="list-item">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span style="font-size: 1.2em;">${cat.icon}</span>
+                                    <span style="font-weight: 500;">${category}</span>
+                                </div>
+                                <span style="font-weight: 700; color: ${cat.color}; font-size: 0.9em;">${currencyDisplay}</span>
+                            </div>
+                        `;
+                    }).join('');
+
+                return `
+                    <div style="margin-bottom: 20px; padding: 15px; background: var(--light-gray); border-radius: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h3 style="margin: 0;">✈️ ${trip.name}</h3>
+                            <button class="btn btn-primary btn-sm" onclick="filterByTrip('${trip.id}')">View</button>
+                        </div>
+                        ${totalSummaryHTML}
+                        <div style="background: white; border-radius: 8px; overflow: hidden;">
+                            ${categoryHTML}
+                        </div>
+                        <div style="margin-top: 10px; font-size: 0.85em; color: var(--gray); text-align: right;">
+                            ${tripExpenses.length} expense${tripExpenses.length !== 1 ? 's' : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Trip management
+        function openTripModal() {
+            renderTripList();
+            document.getElementById('tripModal').classList.add('active');
+        }
+
+        function addTrip() {
+            const name = document.getElementById('tripName').value.trim();
+            if (!name) {
+                alert('Please enter a trip name');
+                return;
+            }
+
+            const trip = {
+                id: Date.now().toString(),
+                name: name
+            };
+
+            trips.push(trip);
+            saveData();
+            document.getElementById('tripName').value = '';
+            renderTripList();
+            populateTripSelect();
+        }
+
+        function deleteTrip(id) {
+            if (confirm('Delete this trip? Expenses will be marked as daily expenses.')) {
+                trips = trips.filter(t => t.id !== id);
+                expenses.forEach(e => {
+                    if (e.trip === id) e.trip = '';
+                });
+                saveData();
+                renderTripList();
+                updateStats();
+                renderExpenses();
+            }
+        }
+
+        function renderTripList() {
+            const container = document.getElementById('tripList');
+
+            if (trips.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: var(--gray); padding: 20px;">No trips yet</p>';
+                return;
+            }
+
+            container.innerHTML = trips.map(trip => `
+                <div class="list-item">
+                    <span>✈️ ${trip.name}</span>
+                    <button class="btn btn-danger btn-sm" onclick="deleteTrip('${trip.id}')">Delete</button>
+                </div>
+            `).join('');
+        }
+
+        function populateTripSelect() {
+            const select = document.getElementById('tripSelect');
+            select.innerHTML = '<option value="">Daily Expenses</option>' +
+                trips.map(trip => `<option value="${trip.id}">${trip.name}</option>`).join('');
+        }
+
+        function getTripName(tripId) {
+            const trip = trips.find(t => t.id === tripId);
+            return trip ? trip.name : 'Unknown Trip';
+        }
+
+        // Payment method management
+        function openPaymentMethodModal() {
+            document.getElementById('paymentMethodModal').classList.add('active');
+        }
+
+        function addPaymentMethod() {
+            const name = document.getElementById('paymentMethodName').value.trim();
+            if (!name) {
+                alert('Please enter a payment method name');
+                return;
+            }
+
+            if (paymentMethods.includes(name)) {
+                alert('Payment method already exists');
+                return;
+            }
+
+            paymentMethods.push(name);
+            saveData();
+            document.getElementById('paymentMethodName').value = '';
+            renderPaymentMethodList();
+            populatePaymentMethodSelect();
+        }
+
+        function deletePaymentMethod(method) {
+            if (confirm(`Delete payment method "${method}"?`)) {
+                paymentMethods = paymentMethods.filter(m => m !== method);
+                saveData();
+                renderPaymentMethodList();
+                populatePaymentMethodSelect();
+            }
+        }
+
+        function renderPaymentMethodList() {
+            const container = document.getElementById('paymentMethodList');
+
+            container.innerHTML = paymentMethods.map(method => `
+                <div class="list-item">
+                    <span>💳 ${method}</span>
+                    <button class="btn btn-danger btn-sm" onclick="deletePaymentMethod('${method}')">Delete</button>
+                </div>
+            `).join('');
+        }
+
+        function populatePaymentMethodSelect() {
+            const select = document.getElementById('paymentMethod');
+            select.innerHTML = paymentMethods.map(method =>
+                `<option value="${method}">${method}</option>`
+            ).join('');
         }
 
         // Format date
@@ -953,49 +1404,69 @@
             document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
             event.currentTarget.classList.add('active');
 
+            document.getElementById('mainView').style.display = 'none';
+            document.getElementById('statsView').style.display = 'none';
+            document.getElementById('settingsView').style.display = 'none';
+
             if (view === 'main') {
                 document.getElementById('mainView').style.display = 'block';
-                document.getElementById('statsView').style.display = 'none';
-            } else {
-                document.getElementById('mainView').style.display = 'none';
+            } else if (view === 'stats') {
                 document.getElementById('statsView').style.display = 'block';
-                updateCategoryStats();
+                updateCurrencyStats();
+                updateDailyStats();
+                updateTripStats();
+            } else if (view === 'settings') {
+                document.getElementById('settingsView').style.display = 'block';
+                renderPaymentMethodList();
             }
         }
 
         // Export data
         function exportData() {
-            const dataStr = JSON.stringify(expenses, null, 2);
+            const data = {
+                expenses: expenses,
+                trips: trips,
+                paymentMethods: paymentMethods,
+                exportDate: new Date().toISOString()
+            };
+
+            const dataStr = JSON.stringify(data, null, 2);
             const dataBlob = new Blob([dataStr], { type: 'application/json' });
             const url = URL.createObjectURL(dataBlob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `expenses_${new Date().toISOString().split('T')[0]}.json`;
+            link.download = `expense_tracker_${new Date().toISOString().split('T')[0]}.json`;
             link.click();
             URL.revokeObjectURL(url);
         }
 
         // Clear all data
         function clearAllData() {
-            if (confirm('Are you sure you want to delete ALL expenses? This cannot be undone!')) {
-                if (confirm('This will permanently delete all your data. Continue?')) {
+            if (confirm('Are you sure you want to delete ALL data? This cannot be undone!')) {
+                if (confirm('This will permanently delete all expenses, trips, and payment methods. Continue?')) {
                     expenses = [];
-                    saveExpensesToStorage();
+                    trips = [];
+                    paymentMethods = ['Cash', 'Credit Card', 'Debit Card'];
+                    saveData();
                     updateStats();
                     renderExpenses();
+                    renderPaymentMethodList();
+                    renderTripList();
                     alert('All data has been cleared');
                 }
             }
         }
 
         // Close modal on background click
-        document.getElementById('addModal').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeModal();
-            }
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.remove('active');
+                }
+            });
         });
 
-        // Register service worker for offline support
+        // Register service worker
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js').then(function(registration) {
                 console.log('Service Worker registered');
