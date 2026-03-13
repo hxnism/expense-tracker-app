@@ -708,11 +708,12 @@
             </div>
 
             <div class="form-group">
-                <label for="tripName">New Trip Name</label>
+                <label for="tripName" id="tripFormLabel">New Trip Name</label>
                 <input type="text" class="form-control" id="tripName" placeholder="e.g., Tokyo 2026">
+                <input type="hidden" id="editingTripId">
             </div>
 
-            <button class="btn btn-primary" onclick="addTrip()" style="width: 100%; margin-bottom: 20px;">
+            <button class="btn btn-primary" id="tripSaveBtn" onclick="saveTrip()" style="width: 100%; margin-bottom: 20px;">
                 Add Trip
             </button>
 
@@ -725,16 +726,17 @@
     <div class="modal" id="paymentMethodModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 class="modal-title">Add Payment Method</h2>
+                <h2 class="modal-title" id="paymentMethodModalTitle">Add Payment Method</h2>
                 <button class="close-btn" onclick="closeModal('paymentMethodModal')">&times;</button>
             </div>
 
             <div class="form-group">
                 <label for="paymentMethodName">Payment Method Name</label>
                 <input type="text" class="form-control" id="paymentMethodName" placeholder="e.g., DBS Credit Card">
+                <input type="hidden" id="editingPaymentMethod">
             </div>
 
-            <button class="btn btn-primary" onclick="addPaymentMethod()" style="width: 100%;">
+            <button class="btn btn-primary" id="paymentMethodSaveBtn" onclick="savePaymentMethod()" style="width: 100%;">
                 Add Payment Method
             </button>
         </div>
@@ -1268,27 +1270,57 @@
 
         // Trip management
         function openTripModal() {
+            // Reset form
+            document.getElementById('tripName').value = '';
+            document.getElementById('editingTripId').value = '';
+            document.getElementById('tripFormLabel').textContent = 'New Trip Name';
+            document.getElementById('tripSaveBtn').textContent = 'Add Trip';
             renderTripList();
             document.getElementById('tripModal').classList.add('active');
         }
 
-        function addTrip() {
+        function saveTrip() {
             const name = document.getElementById('tripName').value.trim();
+            const editingId = document.getElementById('editingTripId').value;
+
             if (!name) {
                 alert('Please enter a trip name');
                 return;
             }
 
-            const trip = {
-                id: Date.now().toString(),
-                name: name
-            };
+            if (editingId) {
+                // Edit existing trip
+                const trip = trips.find(t => t.id === editingId);
+                if (trip) {
+                    trip.name = name;
+                }
+            } else {
+                // Add new trip
+                const trip = {
+                    id: Date.now().toString(),
+                    name: name
+                };
+                trips.push(trip);
+            }
 
-            trips.push(trip);
             saveData();
             document.getElementById('tripName').value = '';
+            document.getElementById('editingTripId').value = '';
+            document.getElementById('tripFormLabel').textContent = 'New Trip Name';
+            document.getElementById('tripSaveBtn').textContent = 'Add Trip';
             renderTripList();
             populateTripSelect();
+            updateStats();
+        }
+
+        function editTrip(id) {
+            const trip = trips.find(t => t.id === id);
+            if (!trip) return;
+
+            document.getElementById('tripName').value = trip.name;
+            document.getElementById('editingTripId').value = id;
+            document.getElementById('tripFormLabel').textContent = 'Edit Trip Name';
+            document.getElementById('tripSaveBtn').textContent = 'Save Changes';
         }
 
         function deleteTrip(id) {
@@ -1315,7 +1347,10 @@
             container.innerHTML = trips.map(trip => `
                 <div class="list-item">
                     <span>✈️ ${trip.name}</span>
-                    <button class="btn btn-danger btn-sm" onclick="deleteTrip('${trip.id}')">Delete</button>
+                    <div style="display: flex; gap: 5px;">
+                        <button class="btn btn-primary btn-sm" onclick="editTrip('${trip.id}')">Edit</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteTrip('${trip.id}')">Delete</button>
+                    </div>
                 </div>
             `).join('');
         }
@@ -1333,26 +1368,67 @@
 
         // Payment method management
         function openPaymentMethodModal() {
+            // Reset form
+            document.getElementById('paymentMethodName').value = '';
+            document.getElementById('editingPaymentMethod').value = '';
+            document.getElementById('paymentMethodModalTitle').textContent = 'Add Payment Method';
+            document.getElementById('paymentMethodSaveBtn').textContent = 'Add Payment Method';
             document.getElementById('paymentMethodModal').classList.add('active');
         }
 
-        function addPaymentMethod() {
+        function savePaymentMethod() {
             const name = document.getElementById('paymentMethodName').value.trim();
+            const editingMethod = document.getElementById('editingPaymentMethod').value;
+
             if (!name) {
                 alert('Please enter a payment method name');
                 return;
             }
 
-            if (paymentMethods.includes(name)) {
-                alert('Payment method already exists');
-                return;
+            if (editingMethod) {
+                // Edit existing payment method
+                if (name !== editingMethod && paymentMethods.includes(name)) {
+                    alert('Payment method already exists');
+                    return;
+                }
+
+                // Replace in payment methods array
+                const index = paymentMethods.indexOf(editingMethod);
+                if (index !== -1) {
+                    paymentMethods[index] = name;
+                }
+
+                // Update all expenses using this payment method
+                expenses.forEach(e => {
+                    if (e.paymentMethod === editingMethod) {
+                        e.paymentMethod = name;
+                    }
+                });
+            } else {
+                // Add new payment method
+                if (paymentMethods.includes(name)) {
+                    alert('Payment method already exists');
+                    return;
+                }
+                paymentMethods.push(name);
             }
 
-            paymentMethods.push(name);
             saveData();
             document.getElementById('paymentMethodName').value = '';
+            document.getElementById('editingPaymentMethod').value = '';
+            document.getElementById('paymentMethodModalTitle').textContent = 'Add Payment Method';
+            document.getElementById('paymentMethodSaveBtn').textContent = 'Add Payment Method';
             renderPaymentMethodList();
             populatePaymentMethodSelect();
+            closeModal('paymentMethodModal');
+        }
+
+        function editPaymentMethod(method) {
+            document.getElementById('paymentMethodName').value = method;
+            document.getElementById('editingPaymentMethod').value = method;
+            document.getElementById('paymentMethodModalTitle').textContent = 'Edit Payment Method';
+            document.getElementById('paymentMethodSaveBtn').textContent = 'Save Changes';
+            document.getElementById('paymentMethodModal').classList.add('active');
         }
 
         function deletePaymentMethod(method) {
@@ -1370,7 +1446,10 @@
             container.innerHTML = paymentMethods.map(method => `
                 <div class="list-item">
                     <span>💳 ${method}</span>
-                    <button class="btn btn-danger btn-sm" onclick="deletePaymentMethod('${method}')">Delete</button>
+                    <div style="display: flex; gap: 5px;">
+                        <button class="btn btn-primary btn-sm" onclick="editPaymentMethod('${method}')">Edit</button>
+                        <button class="btn btn-danger btn-sm" onclick="deletePaymentMethod('${method}')">Delete</button>
+                    </div>
                 </div>
             `).join('');
         }
