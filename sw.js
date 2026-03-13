@@ -1,5 +1,5 @@
 // Service Worker for Expense Tracker
-const CACHE_NAME = 'expense-tracker-v1';
+const CACHE_NAME = 'expense-tracker-v2';
 const urlsToCache = [
   './',
   './index.html',
